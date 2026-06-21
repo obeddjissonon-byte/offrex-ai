@@ -1,51 +1,60 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 
-const server = http.createServer(async (req, res) => {
-  // CORS
+const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
 
-  // Proxy API
   if (req.method === 'POST' && req.url === '/api/claude') {
     let body = '';
     req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        const { default: fetch } = await import('node-fetch');
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': API_KEY,
-            'anthropic-version': '2023-06-01'
-          },
-          body: body
+    req.on('end', () => {
+      const options = {
+        hostname: 'api.anthropic.com',
+        path: '/v1/messages',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY,
+          'anthropic-version': '2023-06-01',
+          'Content-Length': Buffer.byteLength(body)
+        }
+      };
+
+      const proxyReq = https.request(options, (proxyRes) => {
+        let data = '';
+        proxyRes.on('data', chunk => data += chunk);
+        proxyRes.on('end', () => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(data);
         });
-        const data = await response.json();
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(data));
-      } catch(e) {
+      });
+
+      proxyReq.on('error', (e) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: e.message }));
-      }
+      });
+
+      proxyReq.write(body);
+      proxyReq.end();
     });
     return;
   }
 
   // Serve index.html
-  const filePath = path.join(__dirname, 'index.html');
-  fs.readFile(filePath, (err, data) => {
+  fs.readFile(path.join(__dirname, 'index.html'), (err, data) => {
     if (err) { res.writeHead(404); res.end('Not found'); return; }
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(data);
   });
 });
 
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log('Server running on port ' + PORT));
