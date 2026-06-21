@@ -390,7 +390,7 @@ Plan d'action concret Jour 1 à Jour 7 pour lancer sur ${plateforme} via ${canal
 Sois ultra-concret, culturellement ancré dans la réalité ouest-africaine. Chaque élément doit être directement utilisable sans modification.`;
 
   try {
-    const r = await fetch('/.netlify/functions/claude', {
+    const r = await fetch('/api/claude', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -402,12 +402,14 @@ Sois ultra-concret, culturellement ancré dans la réalité ouest-africaine. Cha
       })
     });
     const data = await r.json();
+    if (data.error) throw new Error(JSON.stringify(data.error));
+    if (!data.content || !data.content[0]) throw new Error('Réponse vide: ' + JSON.stringify(data));
     const text = data.content[0].text;
     endProgress();
     renderPack(produit, text);
   } catch(e) {
     endProgress();
-    alert('Erreur de connexion. Vérifie ta clé API.');
+    alert('Erreur : ' + e.message);
     document.getElementById('btn-gen').disabled = false;
   }
 }
