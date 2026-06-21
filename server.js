@@ -30,6 +30,7 @@ const server = http.createServer((req, res) => {
       };
 
       const proxyReq = https.request(options, (proxyRes) => {
+        proxyRes.setTimeout(25000);
         let data = '';
         proxyRes.on('data', chunk => data += chunk);
         proxyRes.on('end', () => {
@@ -38,6 +39,7 @@ const server = http.createServer((req, res) => {
         });
       });
 
+      proxyReq.setTimeout(25000, () => { proxyReq.destroy(); res.writeHead(504); res.end(JSON.stringify({error:'timeout'})); });
       proxyReq.on('error', (e) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: e.message }));
