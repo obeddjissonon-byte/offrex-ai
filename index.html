@@ -316,97 +316,48 @@ const SECTIONS = [
   { key: 'checklist', label: '🚀 Checklist de Lancement', name: 'Plan de lancement' },
 ];
 
+async function callAPI(prompt) {
+  const r = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] })
+  });
+  const data = await r.json();
+  if (data.error) throw new Error(JSON.stringify(data.error));
+  if (!data.content || !data.content[0]) throw new Error('Vide: ' + JSON.stringify(data));
+  return data.content[0].text;
+}
+
 async function generate() {
   const produit = v('produit');
   const canal = getChip('chips-canal');
   const plateforme = getChip('chips-plateforme');
-
   if (!produit) { alert('Donne-nous le nom de ton produit.'); return; }
-
   document.getElementById('btn-gen').disabled = true;
   startProgress();
 
-  const prompt = `Tu es un expert en marketing digital et en copywriting pour le marché de l'Afrique de l'Ouest francophone (Bénin, Côte d'Ivoire, Sénégal, Togo, Cameroun...).
+  const ctx = `Produit: "${produit}" | Canal: ${canal} | Plateforme: ${plateforme} | Marche: Afrique de l'Ouest francophone`;
 
-Un vendeur de produits digitaux veut lancer :
-- Produit : "${produit}"
-- Canal publicitaire : ${canal}
-- Plateforme de vente : ${plateforme}
-
-Tu dois générer un PACK MARKETING COMPLET, clé en main. Il n'a rien à réfléchir — tout doit être prêt à copier-coller.
-
-Réponds en 6 blocs séparés exactement par la balise ---BLOC--- (sans rien avant ni après). Respecte strictement ce format :
-
-BLOC 1 — PRIX & POSITIONNEMENT
-Analyse le type de produit et propose :
-- Le prix idéal en FCFA (avec justification courte)
-- Un prix barré suggéré (prix "avant réduction")
-- La fourchette de prix acceptable
-- Le meilleur positionnement (entrée de gamme / mid / premium) et pourquoi
-
+  const p1 = ctx + `
+Genere 3 blocs separes par ---BLOC--- :
+BLOC 1 - PRIX: prix ideal FCFA + justification + prix barre + fourchette + positionnement (entree/mid/premium)
 ---BLOC---
-
-BLOC 2 — OFFRE IRRÉSISTIBLE
-Construis l'offre complète :
-- Promesse principale (1 phrase forte et spécifique)
-- 3 bonus adaptés au produit avec valeur perçue en FCFA chacun
-- Garantie adaptée au marché africain
-- 2 déclencheurs d'urgence/rareté crédibles
-- Phrase d'ancrage du prix
-
+BLOC 2 - OFFRE IRRESISTIBLE: promesse forte + 3 bonus avec valeur FCFA + garantie marche africain + 2 urgences + ancrage prix
 ---BLOC---
+BLOC 3 - 7 ANGLES PUB pour ${canal}: [Nom] -> approche + accroche. Angles: Douleur|Aspiration|Preuve|FOMO|Colere|Curiosite|Transformation`;
 
-BLOC 3 — 7 ANGLES PUBLICITAIRES
-Pour le canal ${canal}, génère 7 angles distincts et percutants :
-Pour chaque angle : [Nom de l'angle] → 1 phrase d'approche + 1 exemple d'accroche prête à utiliser.
-Angles : Douleur vive | Aspiration | Preuve sociale | FOMO | Colère/injustice | Curiosité/secret | Transformation
-
+  const p2 = ctx + `
+Genere 3 blocs separes par ---BLOC--- :
+BLOC 4 - 3 AD-COPY pour ${canal}: accroche + corps + CTA vers ${plateforme}. Naturel, passe moderation.
 ---BLOC---
-
-BLOC 4 — 3 AD-COPY PRÊTS À PUBLIER
-Pour ${canal}, rédige 3 textes publicitaires complets distincts :
-Chaque ad-copy : accroche (stop-scroll) + corps (émotion + logique + preuve) + CTA vers ${plateforme}.
-Langage naturel, passe la modération, adapté à la culture ouest-africaine.
-
+BLOC 5 - BRIEF CREATIF: concept visuel + textes superposer + palette HEX + 5 instructions designer + si video: sequence/son
 ---BLOC---
-
-BLOC 5 — BRIEF CRÉATIF VISUEL
-Pour le format principal de ${canal} :
-- Concept visuel central (scène, personnage, action)
-- Texte à superposer (titre + sous-titre + CTA visuel)
-- Palette de couleurs recommandée (avec codes HEX)
-- Instructions step-by-step pour le designer (5 points)
-- Si vidéo : durée, séquence, ton de voix, musique
-
----BLOC---
-
-BLOC 6 — CHECKLIST DE LANCEMENT
-Plan d'action concret Jour 1 à Jour 7 pour lancer sur ${plateforme} via ${canal} :
-- Actions quotidiennes précises
-- Budgets pub suggérés (en FCFA)
-- Métriques à surveiller
-- Signaux d'alerte et ajustements à faire
-
-Sois ultra-concret, culturellement ancré dans la réalité ouest-africaine. Chaque élément doit être directement utilisable sans modification.`;
+BLOC 6 - CHECKLIST LANCEMENT J1-J7 sur ${plateforme} via ${canal}: actions quotidiennes + budgets FCFA + metriques + alertes`;
 
   try {
-    const r = await fetch('/api/claude', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    });
-    const data = await r.json();
-    if (data.error) throw new Error(JSON.stringify(data.error));
-    if (!data.content || !data.content[0]) throw new Error('Réponse vide: ' + JSON.stringify(data));
-    const text = data.content[0].text;
+    const [t1, t2] = await Promise.all([callAPI(p1), callAPI(p2)]);
     endProgress();
-    renderPack(produit, text);
+    renderPack(produit, t1 + '\n---BLOC---\n' + t2);
   } catch(e) {
     endProgress();
     alert('Erreur : ' + e.message);
